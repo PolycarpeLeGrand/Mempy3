@@ -1,25 +1,16 @@
 import pickle
 import os
 import treetaggerwrapper
-from config import *
-import pandas as pd
-import csv
 
 
 class DocModel:
-    TAGGER = treetaggerwrapper.TreeTagger(TAGLANG='en')
-
-    '''
-    with open('data\\docmodel_cats.csv', newline='') as csvfile:
-        DOCTYPE_CATS = {n[0]: n[1] for n in csv.reader(csvfile)}
-    print('util globals loaded')
-    '''
     def __init__(self, origin_file, tree, save_path, save_on_init=True, extract_metadata_on_init=True):
         # file data
         self.tree = tree
         self.origin_file = origin_file
-        self.path = save_path
         self.filename = origin_file[:-4] + '.p'
+        self.file_path = save_path / self.filename
+
 
         # metadata
         self.id = origin_file[:-4]
@@ -27,17 +18,14 @@ class DocModel:
         self.title = None
         self.source = None
         self.doctype = None
-        self.doctype_cat = None
 
         # text
         self.raw_text_paragraphs = None
-        self.raw_abstract_paragraphs = None
-        self.has_text = False
-        self.has_abstract = False
+        self.raw_abs_paragraphs = None
 
         # tt
-        self.text_tt_paragraphs = None
-        self.abstract_tt_paragraphs = None
+        self.tt_text_paragraphs = None
+        self.tt_abs_paragraphs = None
 
         # others
         self.log = {}
@@ -64,50 +52,17 @@ class DocModel:
     def get_doctype(self):
         return self.doctype
 
-    def get_doctype_cat(self):
-        return self.doctype_cat
+    def get_raw_text(self):
+        return self.raw_text_paragraphs
 
-    def get_has_text(self):
-        return self.has_text
-
-    def get_has_abstract(self):
-        return self.has_abstract
-
-    def get_raw_text(self, splitter='\n'):
-        return splitter.join(para for para in self.raw_text_paragraphs)
-
-    def get_raw_abstract(self, splitter='\n'):
-        return splitter.join(para for para in self.raw_abstract_paragraphs)
-
-    def get_text_lemmas(self, filter_tags=True, flatten=True):
-        return DocModel.format_tt_values(self.text_tt_paragraphs, attribute='lemma', filter_tags=filter_tags, flatten=flatten)
-
-    def get_abstract_lemmas(self, filter_tags=True, flatten=True):
-        return DocModel.format_tt_values(self.abstract_tt_paragraphs, attribute='lemma', filter_tags=filter_tags, flatten=flatten)
+    def get_raw_abstract(self):
+        return self.raw_abs_paragraphs
 
     def get_text_tags(self):
-        return DocModel.format_tt_values(self.text_tt_paragraphs, filter_tags=True, flatten=True)
+        return self.tt_text_paragraphs
 
     def get_abstract_tags(self):
-        return DocModel.format_tt_values(self.abstract_tt_paragraphs, filter_tags=True, flatten=True)
-
-    def get_num_tokens(self):
-        return len(self.get_text_lemmas())
-
-    def get_num_uni_tokens(self):
-        return len(set(self.get_text_lemmas()))
-
-    def get_num_abstract_tokens(self):
-        return len(self.get_abstract_lemmas())
-
-    def get_lexical_counts(self, text=True, abstract=True):
-        assert (text or abstract), "Why would you call this method with both params False???"
-        r = []
-        if text:
-            r.append(pickle.load(open(DF_RESULTS_DIR+'lexicon_df.p', 'rb')).loc[[self.id]])
-        if abstract:
-            r.append(pickle.load(open(DF_RESULTS_DIR+'lexicon_abs_df.p', 'rb')).loc[[self.id]])
-        return pd.concat(r, axis=1, sort=False)
+        return self.tt_abs_paragraphs
 
     ### Extractors ###
     def extract_id(self):
@@ -150,13 +105,6 @@ class DocModel:
             self.doctype = 'error'
             print(f'Error updating doctype on {self.id}')
 
-    def extract_doctype_category(self):
-        try:
-            self.doctype_cat = DocModel.DOCTYPE_CATS[self.doctype]
-        except:
-            self.doctype_cat = 'error'
-            print(f'Error updating doctype category on {self.id}')
-
     def extract_all_metadata(self):
         self.extract_id()
         self.extract_year()
@@ -164,26 +112,25 @@ class DocModel:
         self.extract_source()
         self.extract_doctype()
 
-    def extract_abstract(self):
-        self.raw_abstract_paragraphs, self.has_abstract = self.extract_content_paragraphs('.fm/abs')
+    def extract_abstract(self, trash_sections):
+        self.raw_abs_paragraphs = self.extract_content_paragraphs('.fm/abs', trash_sections)
 
-    def extract_text(self):
-        self.raw_text_paragraphs, self.has_text = self.extract_content_paragraphs('bdy')
+    def extract_text(self, trash_sections):
+        self.raw_text_paragraphs = self.extract_content_paragraphs('bdy', trash_sections)
 
-    def treetag_abstract(self):
-        self.abstract_tt_paragraphs = self.treetag_paragraphs(self.raw_abstract_paragraphs)
+    def treetag_abstract(self, tagger):
+        self.tt_abs_paragraphs = self.treetag_paragraphs(self.raw_abs_paragraphs, tagger)
 
-    def treetag_text(self):
-        self.text_tt_paragraphs = self.treetag_paragraphs(self.raw_text_paragraphs)
+    def treetag_text(self, tagger):
+        self.tt_text_paragraphs = self.treetag_paragraphs(self.raw_text_paragraphs, tagger)
 
     ### work and process methods ###
     ### private ###
 
     # additional trash sections to consider: abbr, abbrgrp
     # work_section : bdy, abs
-    def extract_content_paragraphs(self, work_section, min_para_len=5, trash_sections=('st', 'tbl', 'display-formula', 'fig', 'file', 'suppl', 'table')):
+    def extract_content_paragraphs(self, work_section, trash_sections, min_para_len=5):
         bdy = self.tree.find(work_section)
-        success = True
         try:
             for sec in trash_sections:
                 for ele in bdy.iter(sec):
@@ -196,78 +143,71 @@ class DocModel:
         if len(para_list) == 0:
             print(f'No {work_section} for file {self.id}')
             para_list = ['no text']
-            success = False
-        return para_list, success
+        return para_list
 
     ### TreeTagger preprocess and parse ###
 
     # Process chaque paragraphe avec TreeTagger pour les transformer en listes de tags
     # Prend une liste [str, str, str,str]
     # Retourne une liste [ [tag, tag, tag], [tag, tag, tag] ]
-    def treetag_paragraphs(self, paragraphs):
+    def treetag_paragraphs(self, paragraphs, tagger):
         try:
-            tt_tags = [treetaggerwrapper.make_tags(DocModel.TAGGER.tag_text(para.lower()), exclude_nottags=True) for para in paragraphs]
+            tt_tags = [treetaggerwrapper.make_tags(tagger.tag_text(para.lower()), exclude_nottags=True) for para in paragraphs]
         except:
             print(f'Treetagging error on id: {self.id}')
             tt_tags = []
         return tt_tags
 
-    # attributes: 'lemma', 'pos', 'word'
-    # Prend une liste 2d de paragraphes tt tags et applique les filtres specifies
-    # Call d'autres fcts selong les params
-    # Retourne une liste paragraphes 2d avec les specs demandees
-    # TODO add split sentences
-    @staticmethod
-    def format_tt_values(paragraphs, attribute=None, filter_tags=True, flatten=False):
-        if filter_tags:
-            paragraphs = DocModel.filter_tt_tags(paragraphs)
-        if attribute:
-            paragraphs = DocModel.select_tt_attributes(paragraphs, attribute)
-        if flatten:
-            paragraphs = DocModel.flatten_paragraphs(paragraphs)
-        return paragraphs
+    def to_dict(self):
+        d = {
+            'id': self.id,
+            'year': self.year,
+            'title': self.title,
+            'source': self.source,
+            'doctype': self.doctype,
+            'tt_text_paragraphs': self.tt_text_paragraphs,
+            'tt_abs_paragraphs': self.tt_abs_paragraphs
+        }
+        return d
 
-    # Prend une liste 2d de paragraphes de tt tags et filtre selon excluded tags et special chars
-    # Retourne une liste sans les tags avec POS exclus ou special chars dans le lemma
-    @staticmethod
-    def filter_tt_tags(paragraphs, excluded_tags=TT_EXCLUDED_TAGS, special_chars=SPECIAL_CHARACTERS):
-        return [[tag for tag in para if tag.pos not in excluded_tags and not any(sc in tag.lemma for sc in special_chars)] for para in paragraphs]
+    def metadata_to_dict(self):
+        d = {
+            'id': self.id,
+            'year': self.year,
+            'title': self.title,
+            'source': self.source,
+            'doctype': self.doctype,
+        }
+        return d
 
-    # Prend une liste 2d de paragraphes de tt tags et extrait un element
-    # Retourne liste avec meme format et dimensions, mais lemma (ou autre element) a la place de Tag complet
-    # lemma, pos, word
-    @staticmethod
-    def select_tt_attributes(paragraphs, attribute):
-        return [[getattr(tag, attribute) for tag in para] for para in paragraphs]
+    def tags_to_dict(self):
+        d = {
+            'tt_text_paragraphs': self.tt_text_paragraphs,
+            'tt_abs_paragraphs': self.tt_abs_paragraphs
+        }
+        return d
 
-    # Prend une liste 2d et la reduit a 1d en sommant les elements
-    # Utile pour reduire les listes separees en paragraphes en liste pour le texte complet
-    @staticmethod
-    def flatten_paragraphs(paragraphs):
-        return sum(paragraphs, [])
-
-    def save_to_pickle(self, path=None, filename=None):
-        if not path:
-            path = self.path
-        if not filename:
-            filename = self.filename
-        pickle.dump(self, open(path + filename, 'wb'))
+    def save_to_pickle(self, destination=None):
+        save_to = destination if destination else self.file_path
+        pickle.dump(self, open(save_to, 'wb'))
 
     def __str__(self):
-        return f'DocModel {self.id} {self.title}'
+        return f'DocModel {self.id} - {self.title}'
 
     def __repr__(self):
-        return {'title': self.title}
+        return {'id': self.id, 'title': self.title}
 
     @classmethod
     def load_from_pickle(cls, path, filename):
-        return pickle.load(open(path + filename, 'rb'))
+        return pickle.load(open(path / filename, 'rb'))
 
     @classmethod
     def docmodel_generator(cls, path, conditions=None):
         for filename in os.listdir(path):
+            #print(path / filename)
             try:
-                dm = pickle.load(open(path + filename, 'rb'))
+                dm = pickle.load(open(path / filename, 'rb'))
+
                 if not conditions or conditions(dm):
                     yield dm
             except EOFError:
@@ -275,13 +215,16 @@ class DocModel:
 
 
 if __name__ == '__main__':
-    test_path = SUB_K_DOCMODELS_DIR
-    srs_path = SUB_K_CORPUS_DIR
+    # test_path = SUB_K_DOCMODELS_DIR
+    # srs_path = SUB_K_CORPUS_DIR
+    from mempy3.config import DOCMODELS_PATH
     test_1 = '1465-9921-8-16.p'
     test_2 = '1297-9686-44-13.p'
-    dm = pickle.load(open(test_path + test_1, 'rb'))
+    dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
+    print(type(dm.tt_text_paragraphs))
+    print(len(dm.tt_text_paragraphs))
     # TAGGER = treetaggerwrapper.TreeTagger(TAGLANG='en')
     # dm.treetag_text()
-    print(dm.get_lexical_counts())
+    # print(dm.get_lexical_counts())
 
 
