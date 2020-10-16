@@ -8,7 +8,7 @@ Global setting for the project. Contains:
 from pathlib import Path
 
 
-BASE_PROJECT_PATH = Path.cwd()
+# BASE_PROJECT_PATH = Path.cwd()
 # BASE_STORAGE_PATH = Path('D:/m3data/')
 BASE_STORAGE_PATH = Path('C:/Users/Sanchez/Desktop/m3data/')
 CORPUS_PATH = Path('D:/corpus/articles/')
@@ -19,6 +19,8 @@ BASE_RESULTS_PATH = BASE_STORAGE_PATH / 'results'
 DOCMODELS_PATH = BASE_STORAGE_PATH / 'docmodels'
 CORPUSFRAMES_PATH = BASE_STORAGE_PATH / 'corpusframes'
 
+LEXCATS_FULL = BASE_STORAGE_PATH / 'csvs' / 'lexcats_full.csv'
+LEXCATS_BASE = BASE_STORAGE_PATH / 'csvs' / 'lexcats_base.csv'
 
 ######
 
@@ -40,9 +42,9 @@ TT_TAGLIST = ['CC', 'CD', 'DT', 'EX', 'FW', 'IN', 'IN/that', 'JJ', 'JJR', 'JJS',
 
 TT_EXCLUDED_TAGS = TT_TAGLIST_UNLISTED + [':', '$', 'SYM', 'SENT']
 
-TT_VERB_TAGS = []
-TT_ADJ_TAGS = []
-TT_NOUN_TAGS = []
+TT_VERB_TAGS = ['VV', 'VVD', 'VVG', 'VVN', 'VVP', 'VVZ']
+TT_ADJ_TAGS = ['JJ', 'JJR', 'JJS']
+TT_NOUN_TAGS = ['NN', 'NNS', 'NP', 'NPS']
 
 
 if __name__ == '__main__':

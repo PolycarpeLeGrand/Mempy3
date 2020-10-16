@@ -1,7 +1,8 @@
 import pickle
 import os
 import treetaggerwrapper
-
+import gc
+from collections import Counter
 
 class DocModel:
     def __init__(self, origin_file, tree, save_path, save_on_init=True, extract_metadata_on_init=True):
@@ -55,13 +56,13 @@ class DocModel:
     def get_raw_text(self):
         return self.raw_text_paragraphs
 
-    def get_raw_abstract(self):
+    def get_raw_abs(self):
         return self.raw_abs_paragraphs
 
     def get_text_tags(self):
         return self.tt_text_paragraphs
 
-    def get_abstract_tags(self):
+    def get_abs_tags(self):
         return self.tt_abs_paragraphs
 
     ### Extractors ###
@@ -158,35 +159,6 @@ class DocModel:
             tt_tags = []
         return tt_tags
 
-    def to_dict(self):
-        d = {
-            'id': self.id,
-            'year': self.year,
-            'title': self.title,
-            'source': self.source,
-            'doctype': self.doctype,
-            'tt_text_paragraphs': self.tt_text_paragraphs,
-            'tt_abs_paragraphs': self.tt_abs_paragraphs
-        }
-        return d
-
-    def metadata_to_dict(self):
-        d = {
-            'id': self.id,
-            'year': self.year,
-            'title': self.title,
-            'source': self.source,
-            'doctype': self.doctype,
-        }
-        return d
-
-    def tags_to_dict(self):
-        d = {
-            'tt_text_paragraphs': self.tt_text_paragraphs,
-            'tt_abs_paragraphs': self.tt_abs_paragraphs
-        }
-        return d
-
     def save_to_pickle(self, destination=None):
         save_to = destination if destination else self.file_path
         pickle.dump(self, open(save_to, 'wb'))
@@ -202,16 +174,17 @@ class DocModel:
         return pickle.load(open(path / filename, 'rb'))
 
     @classmethod
-    def docmodel_generator(cls, path, conditions=None):
-        for filename in os.listdir(path):
-            #print(path / filename)
-            try:
-                dm = pickle.load(open(path / filename, 'rb'))
-
-                if not conditions or conditions(dm):
-                    yield dm
-            except EOFError:
-                print(f'Generator error on file: {filename}')
+    def docmodel_generator(cls, path, vocal=True, conditions=None):
+        for i, filename in enumerate(os.listdir(path)):
+            with open(path / filename, 'rb') as f:
+                try:
+                    dm = pickle.load(f)
+                    if not conditions or conditions(dm):
+                        yield dm
+                except EOFError:
+                    print(f'Generator error on file: {filename}')
+            if vocal and i % 5000 == 0:
+                print(f'Generating {i}th docmodel')
 
 
 if __name__ == '__main__':
@@ -221,8 +194,9 @@ if __name__ == '__main__':
     test_1 = '1465-9921-8-16.p'
     test_2 = '1297-9686-44-13.p'
     dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
-    print(type(dm.tt_text_paragraphs))
-    print(len(dm.tt_text_paragraphs))
+    #print(type(dm.tt_text_paragraphs))
+    #print(len(dm.tt_text_paragraphs))
+    print(dm.get_abs_lemmas())
     # TAGGER = treetaggerwrapper.TreeTagger(TAGLANG='en')
     # dm.treetag_text()
     # print(dm.get_lexical_counts())

@@ -1,0 +1,28 @@
+Répertoire des résultats et des fichiers
+À garder à jour pour ne pas perdre le fil
+
+
+# PREPROCESS
+DocModels : À jour, 15 octobre
+
+Corpusframes:
+    metadata_corpusframe.p
+    [119339 rows x 7 columns]
+    Index: Ids
+    Cols: ['title', 'year', 'source', 'doctype', 'doctype_cat', 'abs_tokens', 'text_tokens']
+    Memory usage: 61mbs
+    Up to date, october 15
+
+
+    abs_nva_docterm_corpusframe.p
+    [119339 rows x 39025 columns]
+    Index: Ids
+    Cols: lemmas, filtered for (nouns, verbs or adjective) and frequence >=10 in abstracts (from preprocess/data/nva_counts_series.p)
+    Up to date, october 15
+
+
+# ANALYSES
+
+
+
+
