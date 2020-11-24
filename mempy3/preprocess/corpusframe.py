@@ -1,3 +1,20 @@
+"""Tools used to build dataframes representing certain aspects of the corpus.
+
+This is a collection of functions used to build various dataframes from the DocModels
+The idea is to pre-build DFs that will be used a lot in order to avoid starting from scratch every time
+This speeds up the process significantly, especially when testing, since we can just load the relevant df
+    instead of getting the info from the DocModels
+
+These dfs can be combined, filtered, etc. as needed.
+We keep each one specific as to keep memory usage reasonable.
+
+corpus frames:
+Index only
+Metadata (add doctype cats)
+lexcounts (abs et txt)
+docterm filtred abs
+"""
+
 import pandas as pd
 from mempy3.config import DOCMODELS_PATH, CORPUSFRAMES_PATH, TT_EXCLUDED_TAGS, SPECIAL_CHARACTERS, TT_NOUN_TAGS, TT_VERB_TAGS, TT_ADJ_TAGS
 from mempy3.preprocess.docmodel import DocModel
@@ -7,20 +24,7 @@ import csv
 from collections import Counter
 import numpy as np
 import gc
-'''
-This module builds and saves pd dataframes representing different aspects of the corpus.
 
-This allows to run different preprocess steps and save the results in an easily accessible way.
-Since not everything can be loaded to memory at once, specific parts can be loaded and combined.
-These dfs can also be combined with the result dfs of various analysis
-TODO naming conventions
-
-corpus frames:
-Index only
-Metadata (add doctype cats)
-lexcounts (abs et txt)
-docterm filtred abs
-'''
 
 
 def filter_tags_basic(tag_paras):
@@ -29,10 +33,10 @@ def filter_tags_basic(tag_paras):
             for para in tag_paras]
 
 
-def filter_tags_nva(tag_paras):
+def filter_tags_nva(tag_paras, min_lemma_len=3):
     return [[tag.lemma for tag in para
-             if (tag.pos in TT_NOUN_TAGS or tag.pos in TT_VERB_TAGS or tag.pos in TT_ADJ_TAGS)
-             and not(any(char in SPECIAL_CHARACTERS for char in tag.word))]
+             if ((tag.pos in TT_NOUN_TAGS or tag.pos in TT_VERB_TAGS or tag.pos in TT_ADJ_TAGS)
+                 and not(any(char in SPECIAL_CHARACTERS for char in tag.lemma)) and len(tag.lemma) >= min_lemma_len)]
             for para in tag_paras]
 
 
@@ -54,6 +58,10 @@ def load_lexicon():
     return [n[0] for n in csv.reader(csvfile)]
 
 
+def list_paragraphs(docmodels_path=DOCMODELS_PATH):
+    return [f'{dm.get_id()}_para{i}' for dm in DocModel.docmodel_generator(docmodels_path, vocal=True) for i in range(len(dm.get_text_tags()))]
+
+
 def words_counts(docmodels_path=DOCMODELS_PATH, save_to='nva_counts_series.p'):
     c = Counter()
     for dm in DocModel.docmodel_generator(docmodels_path, vocal=True):
@@ -67,13 +75,24 @@ def words_counts(docmodels_path=DOCMODELS_PATH, save_to='nva_counts_series.p'):
     print((c >= 20).value_counts())
 
 
+# fait un df index=ids et cols=mots du lexique, data est le nombre d'occurence de chaque mot
+# pour rien manquer et etre plus simple, check si tag.word est dans le lexique, mais ajoute tag.lemma au df
+# probablement des cols qui vont etre a 0, mais on travaille avec des categories alors c'est pas grave
 def make_lexical_counts_corpusframe(docmodels_path=DOCMODELS_PATH):
     lexicon_words = load_lexicon()
-    print(lexicon_words)
     df = pd.DataFrame(np.float32(0.0), index=lexicon_words, columns=pickle.load(open(CORPUSFRAMES_PATH / 'metadata_corpusframe.p', 'rb')).index) # .astype(np.uint8)
     for dm in DocModel.docmodel_generator(docmodels_path):
-        cnt = Counter(flatten_paras([[tag.lemma for tag in para if tag.word in lexicon_words] for para in dm.get_text_tags()]))
+        cnt = Counter(flatten_paras([[tag.lemma for tag in para if tag.word in lexicon_words] for para in dm.get_abs_tags()]))
         df[dm.get_id()].update(pd.Series(cnt, dtype=np.float32))
+    return df.transpose()
+
+
+def make_lexical_counts_paras_corpusframe(docmodels_path=DOCMODELS_PATH):
+    lexicon_words = load_lexicon()
+    df = pd.DataFrame(index=lexicon_words, dtype=np.float32)
+    for dm in DocModel.docmodel_generator(docmodels_path):
+        for i, para in enumerate(dm.get_abs_tags()):
+            df[f'{dm.get_id()}_para{i}'] = df.index.map(Counter([tag.lemma for tag in para if tag.word in lexicon_words]))
     return df.transpose()
 
 
@@ -110,10 +129,10 @@ def docterm_wrapper():
     # bref, on fait un wrapper pour faire des docterms en instanciant un df init avec les bons axes/dims et des 0
     return
 
+
 if __name__ == '__main__':
-    #corpusframe_fct = words_counts
-    corpusframe_fct = make_lexical_counts_corpusframe
-    save_name = 'lexicon_corpusframe.p'
+    corpusframe_fct = make_abs_nva_docterm_corpusframe
+    save_name = 'abs_nva_docterm_corpusframe.p'
 
     print('Running corpusframe main.')
     print(f'Making corpusframe with dict {corpusframe_fct.__name__}, saving as {save_name} ')
@@ -124,4 +143,5 @@ if __name__ == '__main__':
     pickle.dump(df, open(CORPUSFRAMES_PATH / save_name, 'wb'))
     print(f'Done pickling! Run time: {timer.get_run_time()}')
     print(f'Df using: {df.memory_usage(deep=True).sum() / (1024 ** 2)} mbs')
+    print(df.dtypes)
     print(df)

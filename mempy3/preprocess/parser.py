@@ -1,3 +1,10 @@
+"""Utils used to build DocModels from XML files and extract basic data
+
+Unless changes are made to the corpus or DocModel functions, each should only be ran once
+Run as main to run both functions
+Be sure to set paths in config.py beforehand
+"""
+
 from mempy3.config import CORPUS_PATH, DOCMODELS_PATH, TRASH_SECTIONS
 from mempy3.utils.timer import Timer
 from mempy3.preprocess.docmodel import DocModel
@@ -7,6 +14,8 @@ import treetaggerwrapper
 
 
 def create_docmodels_from_xml_corpus(srs_path, save_path, extract_metadata=True):
+    """Reads XMLs and create DocModel objects. Extracts metadata if asked to, which should usually be the case."""
+
     timer = Timer()
     print(f'Starting to parse xml files at {srs_path}...')
     for i, filename in enumerate(os.listdir(srs_path)):
@@ -20,6 +29,8 @@ def create_docmodels_from_xml_corpus(srs_path, save_path, extract_metadata=True)
 
 
 def extract_and_tag_docmodel_texts(path):
+    """Loads and updates all DocModels in a dir by extracting and tagging abstracts and texts"""
+
     timer = Timer()
     tagger = treetaggerwrapper.TreeTagger(TAGLANG='en')
     print(f'Starting to extract and tag texts from docmodels at {path}...')

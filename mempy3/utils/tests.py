@@ -1,3 +1,5 @@
+"""Tests!"""
+
 from mempy3.preprocess.docmodel import DocModel
 from mempy3.config import DOCMODELS_PATH
 from mempy3.utils.timer import Timer

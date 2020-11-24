@@ -1,3 +1,10 @@
+"""Contains the Timer class
+
+Useful to time stuff
+Will start and print on init unless specified otherwise
+Use .step(msg) to step. Will print msg, time since last step and total time
+"""
+
 from datetime import datetime
 
 

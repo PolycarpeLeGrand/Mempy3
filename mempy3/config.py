@@ -3,13 +3,13 @@
 Global setting for the project. Contains:
 - Path globals
 - Preprocess and tagging info (special chars, xml markup, tt tags, etc.)
+
+Uses pathlib.Path
 """
 
 from pathlib import Path
 
 
-# BASE_PROJECT_PATH = Path.cwd()
-# BASE_STORAGE_PATH = Path('D:/m3data/')
 BASE_STORAGE_PATH = Path('C:/Users/Sanchez/Desktop/m3data/')
 CORPUS_PATH = Path('D:/corpus/articles/')
 
@@ -49,7 +49,6 @@ TT_NOUN_TAGS = ['NN', 'NNS', 'NP', 'NPS']
 
 if __name__ == '__main__':
     # tests
-    print(f'Base project path: {BASE_PROJECT_PATH}')
     print(f'Base storage path: {BASE_STORAGE_PATH}')
     print(f'Docmodels path: {DOCMODELS_PATH}')
 

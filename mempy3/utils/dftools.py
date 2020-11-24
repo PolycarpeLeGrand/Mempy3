@@ -1,3 +1,5 @@
+"""Collection of tools, tests and shenanigans relative to dataframes"""
+
 import pandas as pd
 import numpy as np
 import pickle
@@ -40,5 +42,6 @@ def classify_lexical_occurences(df, cat_file):
 
 if __name__ == '__main__':
     #inspect_pickled_df(CORPUSFRAMES_PATH / 'abs_nva_docterm_corpusframe.p')
-    print(classify_lexical_occurences(pickle.load(open(CORPUSFRAMES_PATH / 'lexicon_corpusframe.p', 'rb')), LEXCATS_BASE))
+    #print(classify_lexical_occurences(pickle.load(open(CORPUSFRAMES_PATH / 'lexicon_corpusframe.p', 'rb')), LEXCATS_BASE))
+    print(tfidf_docterm_df(pd.DataFrame({'a': [1,0,0], 'b': [0,7,1]})))
 

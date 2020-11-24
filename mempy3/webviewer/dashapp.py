@@ -3,84 +3,35 @@ import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
 import dash_table as dtc
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import plotly.express as px
 import plotly.graph_objs as go
 import pandas as pd
-from mempy3.config import CORPUSFRAMES_PATH, LEXCATS_BASE, LEXCATS_FULL
-from mempy3.utils.dftools import classify_lexical_occurences
 import pickle
+from mempy3.config import CORPUSFRAMES_PATH, LEXCATS_BASE, LEXCATS_FULL, BASE_ANALYSIS_PATH
+from mempy3.utils.dftools import classify_lexical_occurences
+from mempy3.webviewer.components.header import mempy_banner
+from mempy3.webviewer.components.metadata_tab import tab_metadata
+from mempy3.webviewer.components.topics_tab import topics_container, topics_callbacks
+# import mempy3.webviewer.components.topics_tab as tt
+from umap import UMAP
 
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
+
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.SIMPLEX], suppress_callback_exceptions=True)
 DF = pickle.load(open(CORPUSFRAMES_PATH / 'metadata_corpusframe.p', 'rb'))
 DF2 = pickle.load(open(CORPUSFRAMES_PATH / 'lexicon_corpusframe.p', 'rb'))
+DF_DOC_TOPICS = pickle.load(open(BASE_ANALYSIS_PATH / 'LDA' / 'old' /'topics_20_5_5' / 'doc_topics_df.p', 'rb'))
 
-# header alert
-head_card = dbc.Card(
-    [
-        dbc.CardBody([
-            html.H1("Mempy3 Dashboard", className="alert-heading"),
-            html.P(
-                "On veut utiliser cette app pour permettre une visualisation "
-                "et tester la technologie. On fait des tests, c'est la raison pour laquelle ce paragraphe "
-                "est aussi long et ne dit pas grand chose."
-            ),
-            html.Hr(),
-            html.P(
-                "Utiliser les onglets ci-dessous pour naviguer.",
-                className="mb-0",
-            ),
-        ]),
-    ], color="primary", inverse=True
-)
+reducer = UMAP(n_components=3)
+DF_WORDS_TOPICS = pickle.load(open(BASE_ANALYSIS_PATH / 'LDA' / 'old' / 'topics_128_1_01_10_3_raw' / 'topic_words_df.p', 'rb'))
+DF_WORDS_TOPICS['main_topic'] = DF_WORDS_TOPICS.idxmax(axis=1)
+DF_WORDS_TOPICS[['x', 'y', 'z']] = reducer.fit_transform(DF_WORDS_TOPICS.drop('main_topic', axis=1))
 
-foot_alert = dbc.Alert()
+# DF2 = pd.DataFrame({'a': [1,2,3]})
+# DF3 = pickle.load(open(CORPUSFRAMES_PATH / 'lexicon_paras_corpusframe.p', 'rb'))
+
 
 # tabs pour differentes analyses
-tab_metadata = dbc.Container([
-    dbc.Row([
-        dbc.Col(dbc.Card([
-            dbc.CardBody([
-                html.H4('Longueur des documents', className="card-title"),
-                html.P('Le graphique a la droite montre la repartition des documents en fonction du nombre de mots. '
-                       'Le menu permet de choisir entre les textes et les abstracts. '
-                       'Chaque barre correspond a un interval, par exemple la premiere bar du graphique representant '
-                       'les textes complets representes les textes ayant de 0 a 499 mots.', className='card-text'),
-                dbc.Select(id='bags-select', value='texts',
-                           options=[{'label': 'Textes (tranches de 500)', 'value': 'texts'},
-                                    {'label': 'Abstracts (tranches de 50)', 'value': 'abstracts'}]),
-                dbc.FormGroup([
-                    dbc.Checkbox(id='bags-select-2'),
-                    dbc.Label('Couleurs par cat doctype', html_for='bags-select-2')
-                ]),
-            ]),
-        ]), width=2),
-        dbc.Col(dbc.Card(
-            dcc.Graph(
-                id='token_counts_fig',
-                # figure=bags_fig
-                ), body=True
-        ), width=6),
-        dbc.Col(dbc.Card([
-            dbc.CardHeader('Taille des documents et Metadonnnees (10 plus nombreux)'),
-            dbc.CardBody([
-                html.Div(id='metadata-table'),
-                html.Br(),
-                dbc.Select(id='metadata-table-select', value='source',
-                           options=[{'label': 'Revues', 'value': 'source'},
-                                    {'label': 'Doctypes', 'value': 'doctype'},
-                                    {'label': 'Categories Doctypes', 'value': 'doctype_cat'}]),
-                html.Br(),
-                dcc.RangeSlider(id='metadata-slider', min=0, max=5000, step=500, value=[0, 5000],
-                                marks={i*500: {'label': str(i*500) if i < 10 else '5000+'} for i in range(11)}),
-                dcc.Markdown(id='metadata-slider-para')
-            ])
-        ]), width=4),
-    ]),
-
-], fluid=True)
-
-
 tab_lexicon = dbc.Container([
     dbc.Row([
         dbc.Col([
@@ -98,18 +49,14 @@ tab_lexicon = dbc.Container([
             dbc.Card([
                 dbc.CardHeader(html.H3('Correlations entre les champs')),
                 dbc.CardBody([
-                    dcc.Graph(id='lexicon-heatmap', style={'width': '150vh', 'height': '150vh'})
+                    dbc.Row([dbc.Col([
+                        dcc.Graph(id='lexicon-heatmap', style={'height': '160vh'})  # 'width': '140vh',
+                    ])])
                 ])
             ])
         ], width=10)
     ]),
-
 ], fluid=True)
-
-
-tab_lexicon_test = html.Div(dcc.Graph(id='lexicon-heatmap2', style={'width': '180vh', 'height': '180vh'}))
-
-
 
 
 tab_result_topics = dbc.Container(
@@ -133,20 +80,52 @@ tab_result_table = dbc.Card(
 
 tabs = dbc.Tabs(
     [
-        dbc.Tab(tab_metadata, label="Metadonnees", label_style={"color": "primary"}),
-        dbc.Tab(tab_lexicon, label='Lexique'),
-        dbc.Tab(tab_lexicon_test, label='lextest'),
-        dbc.Tab(tab_result_topics, label="Topic Modeling"),
-        dbc.Tab(tab_result_table, label="Tables", disabled=False),
-    ]
+        dbc.Tab(label="Metadonnees", label_style={'cursor': 'pointer'}),
+        dbc.Tab(label="Lexique", label_style={'cursor': 'pointer'}),
+        dbc.Tab(label="Topic Modeling", label_style={'cursor': 'pointer'}),
+        dbc.Tab(label="Tables", label_style={'cursor': 'pointer'}),
+    ], id='tabs', active_tab='tab-0', style={'padding-left': '10px', }
 )
 
+
 # html.Div donne full largeur, dbc.Container une row au centre. Ou utiliser fluid=True
-app.layout = dbc.Container([
-    #dbc.Alert("Hello Dash!", color='primary'),
-    head_card,
-    tabs,
-], fluid=True)
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    mempy_banner,
+    html.Div([
+        tabs,
+    ], className='pt-2 bg-dark text-light'),
+    dbc.Container([], id='tab-container', fluid=True, className='bt-2 pt-3'),
+
+])
+
+
+topics_callbacks(app, DF_WORDS_TOPICS)
+
+
+@app.callback(Output(component_id='url', component_property='pathname'),
+              [Input(component_id='tabs', component_property='active_tab')])
+def update_pathname(selected_tab):
+    tab_mapping = {'tab-0': '/metadata',
+                   'tab-1': '/lexicon',
+                   'tab-2': '/topics',
+                   'tab-3': '/tables'}
+    print(1)
+    return tab_mapping[selected_tab]
+
+
+@app.callback(
+    [Output(component_id='tab-container', component_property='children'),
+     Output(component_id='tabs', component_property='active_tab')],
+    [Input(component_id='url', component_property='pathname')],
+    State(component_id='tabs', component_property='active_tab')
+)
+def update_tab(curr_tab, active_tab_state):
+    tab_mapping = {'/metadata': (tab_metadata, 'tab-0'),
+                   '/lexicon': (tab_lexicon, 'tab-1'),
+                   '/topics': (topics_container, 'tab-2'),
+                   '/tables': (tab_result_table, 'tab-3')}
+    return tab_mapping[curr_tab][0], tab_mapping[curr_tab][1]
 
 
 @app.callback(
@@ -186,19 +165,16 @@ def update_metadata_table(value, slider_values):
     tdf = tdf[value].value_counts().head(10)
     t = html.Table([
         html.Thead(
-            html.Tr([html.Th('Source'), html.Th('Documents'), html.Th('')])
+            html.Tr([html.Th(value), html.Th('Documents'), html.Th('')])
         ),
         html.Tbody([
             html.Tr([
                 html.Td(i), html.Td(v), html.Td(f'{v/s*100:.2f}%')
             ]) for i, v in tdf.items()
         ])
-    ])
-    text = f'''
-Ajuster le slider pour filtrer par nombre de tokens.
-
-Min tokens: {min_tokens} | Max tokens: {max_tokens if max_tokens < 10000 else "5000+"} | Total docs: {s}
-'''
+    ], style={'width': '100%'})
+    text = ['Ajuster le slider pour filtrer par nombre de tokens.', html.Br(),
+            f'Min tokens: {min_tokens} | Max tokens: {max_tokens if max_tokens < 10000 else "5000+"} | Total docs: {s}']
     return t, text
 
 
@@ -213,5 +189,11 @@ def update_lexical_heatmap(lexcat):
 
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    public = True  # 24.212.252.134:33
+    if public:
+        ip = '192.168.0.129'  #essayer 0.0.0.0 c'est peut-etre un wildcard
+        port = 33
+        app.run_server(debug=False, host=ip, port=port)
+    else:
+        app.run_server(debug=True)
 

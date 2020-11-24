@@ -1,3 +1,12 @@
+"""Defines the DocModel class, used to represent docs.
+
+Running parser.py will make a DocModel object for each doc (xml file) and pickle it.
+These objects hold the metadata and text data for each doc, as to not rely on xml files.
+Use getter functions to access instance variables.
+
+DocModel functions must be adjusted depending on the xml format(s)
+"""
+
 import pickle
 import os
 import treetaggerwrapper
