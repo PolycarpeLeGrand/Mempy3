@@ -49,12 +49,29 @@ def lda_topics_main(name, topics, a, b, min_tokens, max_word_frequence, min_word
     path = BASE_ANALYSIS_PATH / 'LDA' / name
     path.mkdir(exist_ok=True)
 
+    # Load docterm df
+    # df = pickle.load(open(CORPUSFRAMES_PATH / 'abs_nva_docterm_corpusframe.p', 'rb'))
+
     # One step preprocess. Loads, filters and normalizes abs nva docterm df
     df = load_nva_abs_docterm_df(filtered_index_list=filter_metadata_index_list(min_text_tokens=2000),
                                  min_tokens=min_tokens, min_word_occs=min_word_occs, max_word_freq=max_word_frequence,
                                  log_norm=True)
 
+    # Only keep docs with enough tokens
+    # df = df[(df.sum(axis=1) >= min_tokens)]
+
+    # Remove words that occur in too few docs (by default, removes words that happen in less than 10 docs)
+    # and
+    # Remove words that are in more than x% of the docs (by default, remove words that are in more than 30% of docs)
+    # df = df.drop((df > 0).sum()[lambda x: (x < min_word_occs) | (x > max_word_frequence*len(df))].index, axis=1)
+
+    # print(df)
+
     param_dict['num_docs'], param_dict['num_words'] = df.shape
+
+    # tfidf or log normalization, one or both can be commented out
+    #df = tfidf_docterm_df(df)
+    # df = df.apply(lambda x: np.log(x + 1))
 
     # Fit model and save as pickle
     lda_model = make_and_train_lda_model(df, topics, loops, decay, a, b, learn_method, rnd)
@@ -71,6 +88,18 @@ def lda_topics_main(name, topics, a, b, min_tokens, max_word_frequence, min_word
     topic_words_df = topic_words_df.apply(lambda x: x / topic_words_df.sum(axis=1))
     doc_topics_df = doc_topics_df.apply(lambda x: x / doc_topics_df.sum(axis=1))
 
+
+    # add col with main topic for each doc
+    # add col with main word for each topic
+    # doc_topics_df['main_topic'] = doc_topics_df.idxmax(axis=1)
+    # topic_words_df['top_word'] = topic_words_df.idxmax(axis=1)
+
+    # Reduce to 3d with umad and cols info to doc_topics_df
+    # Reduce to 3d with umad and cols info to topics_words_df
+    # reducer = UMAP(n_components=3)
+    # doc_topics_df[['x', 'y', 'z']] = reducer.fit_transform(doc_topics_df)
+    # topic_words_df[['x', 'y', 'z']] = reducer.fit_transform(topic_words_df)
+
     # Save results!
     pickle.dump(doc_topics_df, open(path / 'doc_topics_df.p', 'wb'))
     pickle.dump(topic_words_df, open(path / 'topic_words_df.p', 'wb'))
@@ -79,6 +108,8 @@ def lda_topics_main(name, topics, a, b, min_tokens, max_word_frequence, min_word
     names = df.columns
     param_dict['log likelyhood'] = lda_model.score(df)
     param_dict['perplexity'] = lda_model.perplexity(df)
+
+
 
     # Print and save to txt top words for each topic
     # Does the same job as the csv thing but is uglier and clunkier
@@ -110,7 +141,7 @@ def lda_topics_main(name, topics, a, b, min_tokens, max_word_frequence, min_word
 def lda_run(n_t, a, b, min_tokens, max_freq, min_occs):
     """Calls LDA main, but builds file name from params. Useful to chain tests."""
 
-    name = f'topics_{n_t}_{str(a)[2:]}_{str(b)[2:]}_{min_tokens}_{str(max_freq)[2:]}_{min_occs}_2k'
+    name = f'topics_{n_t}_{str(a)[2:]}_{str(b)[2:]}_{min_tokens}_{str(max_freq)[2:]}_{min_occs}'
     lda_topics_main(name, n_t, a, b, min_tokens, max_freq, min_occs)
 
 
@@ -132,12 +163,8 @@ if __name__ == '__main__':
     # Monter b pour voir si ça étend le tsne
     # Chain tests here. It might be nice to consider using a loop or something.
 
-    lda_run(n_t=16, a=0.2, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)
-    lda_run(n_t=32, a=0.2, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)
-    lda_run(n_t=48, a=0.2, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)
-    lda_run(n_t=64, a=0.2, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)
-
-    # lda_run(n_t=80, a=0.2, b=0.02, min_tokens=150, max_freq=0.3, min_occs=50)
+    lda_run(n_t=80, a=0.1, b=0.01, min_tokens=100, max_freq=0.3, min_occs=50)
+    # lda_run(n_t=80, a=0.2, b=0.01, min_tokens=100, max_freq=0.3, min_occs=50)
 
     # lda_run(n_t=96, a=0.1, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)
     # lda_run(n_t=96, a=0.2, b=0.02, min_tokens=100, max_freq=0.3, min_occs=50)

@@ -10,8 +10,7 @@ DocModel functions must be adjusted depending on the xml format(s)
 import pickle
 import os
 import treetaggerwrapper
-import gc
-from collections import Counter
+
 
 class DocModel:
     def __init__(self, origin_file, tree, save_path, save_on_init=True, extract_metadata_on_init=True):
@@ -155,6 +154,15 @@ class DocModel:
             para_list = ['no text']
         return para_list
 
+    def to_viz_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'source': self.source,
+            'doctype': self.doctype,
+            'year': self.year,
+            'abstract_paras': self.raw_abs_paragraphs
+        }
     ### TreeTagger preprocess and parse ###
 
     # Process chaque paragraphe avec TreeTagger pour les transformer en listes de tags
@@ -200,14 +208,21 @@ if __name__ == '__main__':
     # test_path = SUB_K_DOCMODELS_DIR
     # srs_path = SUB_K_CORPUS_DIR
     from mempy3.config import DOCMODELS_PATH
-    test_1 = '1465-9921-8-16.p'
-    test_2 = '1297-9686-44-13.p'
-    dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
-    #print(type(dm.tt_text_paragraphs))
-    #print(len(dm.tt_text_paragraphs))
-    print(dm.get_abs_lemmas())
+    from mempy3.config import BASE_STORAGE_PATH
+    # test_1 = '1465-9921-8-16.p'
+    # test_2 = '1297-9686-44-13.p'
+    # dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
+
+    for dm in DocModel.docmodel_generator(DOCMODELS_PATH):
+        pickle.dump(dm.to_viz_dict(), open(BASE_STORAGE_PATH / 'viz_dicts' / dm.filename, 'wb'))
+
+
+    # print(type(dm.tt_text_paragraphs))
+    # print(len(dm.tt_text_paragraphs))
+    # print(dm.get_abs_lemmas())
     # TAGGER = treetaggerwrapper.TreeTagger(TAGLANG='en')
     # dm.treetag_text()
     # print(dm.get_lexical_counts())
+
 
 
