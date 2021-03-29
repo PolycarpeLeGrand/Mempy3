@@ -6,13 +6,13 @@ from mempy3.utils.timer import Timer
 from mempy3.config import BASE_ANALYSIS_PATH
 
 
-def kmeans_main(n_clusters, df, name):
-    path = BASE_ANALYSIS_PATH / 'LDA' / name
-    path.mkdir(exist_ok=True)
+def kmeans_main(n_clusters, df, name=''):
+    # path = BASE_ANALYSIS_PATH / 'LDA' / name
+    # path.mkdir(exist_ok=True)
 
-    timer = Timer()
+    # timer = Timer()
     clusters = MiniBatchKMeans(n_clusters=n_clusters, random_state=2112).fit_predict(df)
-    timer.step()
+    # timer.step()
 
     # print(clusters)
     # print(len(clusters))
@@ -38,5 +38,6 @@ if __name__ == '__main__':
     df = pickle.load(open(BASE_ANALYSIS_PATH / 'LDA' / working_dir / df_file_name, 'rb'))
 
     # ecart type, mediane
-    kmeans_main(48, df, 'kmeans_64_80')
+    clusters = kmeans_main(8, df, 'kmeans_64_80')
+    print(type(clusters))
 

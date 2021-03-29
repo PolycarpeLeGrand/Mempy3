@@ -10,6 +10,8 @@ DocModel functions must be adjusted depending on the xml format(s)
 import pickle
 import os
 import treetaggerwrapper
+import itertools
+from spacy.lang.en import English
 
 
 class DocModel:
@@ -20,13 +22,18 @@ class DocModel:
         self.filename = origin_file[:-4] + '.p'
         self.file_path = save_path / self.filename
 
-
         # metadata
         self.id = origin_file[:-4]
         self.year = None
         self.title = None
         self.source = None
         self.doctype = None
+        self.issn = None
+        self.keywords = None
+
+        self.doctype_cat = None
+        self.primary_subjects = None
+        self.secondary_subjects = None
 
         # text
         self.raw_text_paragraphs = None
@@ -61,16 +68,39 @@ class DocModel:
     def get_doctype(self):
         return self.doctype
 
+    def get_issn(self):
+        return self.issn
+
+    def get_keywords(self):
+        return self.keywords
+
+    def get_doctype_cat(self):
+        return self.doctype_cat
+
+    def get_primary_subjects(self):
+        return self.primary_subjects
+
+    def get_secondary_subjects(self):
+        return  self.secondary_subjects
+
     def get_raw_text(self):
+        """Get text as a list of paragraphs ['para1 text', 'para 2 text']"""
+
         return self.raw_text_paragraphs
 
     def get_raw_abs(self):
+        """Get abstract text as a list of paragraphs ['para1 text', 'para 2 text']"""
+
         return self.raw_abs_paragraphs
 
     def get_text_tags(self):
+        """Get text tags as 2d list [[para1 Tags], [para2 Tags], ...]"""
+
         return self.tt_text_paragraphs
 
     def get_abs_tags(self):
+        """Get abstract tags as 2d list [[para1 Tags], [para2 Tags], ...]"""
+
         return self.tt_abs_paragraphs
 
     ### Extractors ###
@@ -114,12 +144,50 @@ class DocModel:
             self.doctype = 'error'
             print(f'Error updating doctype on {self.id}')
 
+    def extract_issn(self):
+        try:
+            d = self.tree.getroot()[2][1].find("issn").text
+            self.issn = d.lower().strip()
+        except:
+            self.issn = 'error'
+            print(f'Error updating issn on {self.id}')
+
+    def extract_doctype_cat(self, doctype_cats_mapping):
+        try:
+            self.doctype_cat = doctype_cats_mapping[self.doctype]
+        except:
+            self.doctype_cat = 'error'
+            print(f'Error updating doctype cat on {self.id}. Base doctype: {self.doctype}')
+
+    def extract_primary_subjects(self, primary_subjects_mapping):
+        try:
+            self.primary_subjects = primary_subjects_mapping[self.source]
+        except:
+            self.primary_subjects = []
+            print(f'Error updating primary subjects on {self.id}. Source: {self.source}. Issn: {self.issn}')
+
+    def extract_secondary_subjects(self, secondary_subjects_mapping):
+        try:
+            self.secondary_subjects = secondary_subjects_mapping[self.source]
+        except:
+            self.secondary_subjects = []
+            print(f'Error updating secondary subjects on {self.id}. Source: {self.source}. Issn: {self.issn}')
+
+    def extract_keywords(self):
+        try:
+            self.keywords = [kwd.text.lower() for kwd in self.tree.getroot()[2].find('kwdg').iter('kwd')]
+        except:
+            self.keywords = []
+            print(f'Error updating keywords on {self.id}')
+
     def extract_all_metadata(self):
         self.extract_id()
         self.extract_year()
         self.extract_title()
         self.extract_source()
         self.extract_doctype()
+        self.extract_issn()
+        self.extract_keywords()
 
     def extract_abstract(self, trash_sections):
         self.raw_abs_paragraphs = self.extract_content_paragraphs('.fm/abs', trash_sections)
@@ -132,6 +200,9 @@ class DocModel:
 
     def treetag_text(self, tagger):
         self.tt_text_paragraphs = self.treetag_paragraphs(self.raw_text_paragraphs, tagger)
+
+    def extract_coocs(self):
+        return ''
 
     ### work and process methods ###
     ### private ###
@@ -161,8 +232,14 @@ class DocModel:
             'source': self.source,
             'doctype': self.doctype,
             'year': self.year,
-            'abstract_paras': self.raw_abs_paragraphs
+            'abstract_paras': self.raw_abs_paragraphs,
+            'text_paras': self.raw_text_paragraphs
         }
+
+    def calc_coocs(self):
+        self.get_text_tags()
+        return
+
     ### TreeTagger preprocess and parse ###
 
     # Process chaque paragraphe avec TreeTagger pour les transformer en listes de tags
@@ -208,21 +285,14 @@ if __name__ == '__main__':
     # test_path = SUB_K_DOCMODELS_DIR
     # srs_path = SUB_K_CORPUS_DIR
     from mempy3.config import DOCMODELS_PATH
-    from mempy3.config import BASE_STORAGE_PATH
+    # from mempy3.config import BASE_STORAGE_PATH
     # test_1 = '1465-9921-8-16.p'
-    # test_2 = '1297-9686-44-13.p'
-    # dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
+    # test_1 = '1297-9686-44-13.p'
+    #test_1 = '0778-7367-67-1-15.p'
+    #dm = pickle.load(open(DOCMODELS_PATH / test_1, 'rb'))
 
     for dm in DocModel.docmodel_generator(DOCMODELS_PATH):
-        pickle.dump(dm.to_viz_dict(), open(BASE_STORAGE_PATH / 'viz_dicts' / dm.filename, 'wb'))
-
-
-    # print(type(dm.tt_text_paragraphs))
-    # print(len(dm.tt_text_paragraphs))
-    # print(dm.get_abs_lemmas())
-    # TAGGER = treetaggerwrapper.TreeTagger(TAGLANG='en')
-    # dm.treetag_text()
-    # print(dm.get_lexical_counts())
-
-
+        dm.extract_issn()
+        dm.extract_keywords()
+        dm.save_to_pickle(DOCMODELS_PATH / dm.filename)
 
